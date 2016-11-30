@@ -123,6 +123,7 @@ class pkgCache								/*{{{*/
    struct StringItem;
    struct VerFile;
    struct DescFile;
+   struct Tag;
    
    // Iterators
    template<typename Str, typename Itr> class Iterator;
@@ -136,6 +137,7 @@ class pkgCache								/*{{{*/
    class PkgFileIterator;
    class VerFileIterator;
    class DescFileIterator;
+   class TagIterator;
    
    class Namespace;
    
@@ -214,6 +216,7 @@ class pkgCache								/*{{{*/
    ReleaseFile *RlsFileP;
    PackageFile *PkgFileP;
    Version *VerP;
+   Tag *TagP;
    Description *DescP;
    Provides *ProvideP;
    Dependency *DepP;
@@ -320,6 +323,7 @@ struct pkgCache::Header
    map_number_t ReleaseFileSz;
    map_number_t PackageFileSz;
    map_number_t VersionSz;
+   map_number_t TagSz;
    map_number_t DescriptionSz;
    map_number_t DependencySz;
    map_number_t DependencyDataSz;
@@ -335,6 +339,7 @@ struct pkgCache::Header
    map_id_t GroupCount;
    map_id_t PackageCount;
    map_id_t VersionCount;
+   map_id_t TagCount;
    map_id_t DescriptionCount;
    map_id_t DependsCount;
    map_id_t DependsDataCount;
@@ -585,6 +590,16 @@ struct pkgCache::VerFile
    map_filesize_t Size;
 };
 									/*}}}*/
+// TagFile structure							/*{{{*/
+/** \brief associates a tag with something */
+struct pkgCache::Tag
+{
+   /** \brief name of this tag */
+   map_stringitem_t Name;
+   /** \brief next step in the linked list */
+   map_pointer_t NextTag;       // Tag
+};
+									/*}}}*/
 // DescFile structure							/*{{{*/
 /** \brief associates a description with a Translation file */
 struct pkgCache::DescFile
@@ -656,6 +671,8 @@ struct pkgCache::Version
    map_pointer_t ParentPkg;         // Package
    /** \brief list of pkgCache::Provides */
    map_pointer_t ProvidesList;      // Provides
+   /** \brief list of pkgCache::Tag */
+   map_pointer_t TagList;           // Tag
 
    /** \brief archive size for this version
 
@@ -808,6 +825,7 @@ class pkgCache::Namespace						/*{{{*/
    typedef pkgCache::GrpIterator GrpIterator;
    typedef pkgCache::PkgIterator PkgIterator;
    typedef pkgCache::VerIterator VerIterator;
+   typedef pkgCache::TagIterator TagIterator;
    typedef pkgCache::DescIterator DescIterator;
    typedef pkgCache::DepIterator DepIterator;
    typedef pkgCache::PrvIterator PrvIterator;

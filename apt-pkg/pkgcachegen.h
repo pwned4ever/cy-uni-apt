@@ -128,6 +128,7 @@ class APT_HIDDEN pkgCacheGenerator					/*{{{*/
 		   uint8_t const Type, map_pointer_t* &OldDepLast);
    bool NewProvides(pkgCache::VerIterator &Ver, pkgCache::PkgIterator &Pkg,
 		    map_stringitem_t const ProvidesVersion, uint8_t const Flags);
+   bool NewTag(pkgCache::VerIterator &Ver,const char *NameStart,unsigned int NameSize);
 
    public:
 
@@ -209,6 +210,7 @@ class APT_HIDDEN pkgCacheListParser
 		    uint8_t const Flags);
    bool NewProvidesAllArch(pkgCache::VerIterator &Ver, APT::StringView Package,
 			   APT::StringView Version, uint8_t const Flags);
+   bool NewTag(pkgCache::VerIterator &Ver,const char *NameStart,unsigned int NameSize);
 #endif
    public:
    
