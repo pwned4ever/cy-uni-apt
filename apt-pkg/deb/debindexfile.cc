@@ -134,6 +134,7 @@ pkgCacheListParser * debTranslationsIndex::CreateListParser(FileFd &Pkg)
    if (newError)
    {
       delete Parser;
+      _error->ReturnError();
       return nullptr;
    }
    else
@@ -168,6 +169,7 @@ pkgCacheListParser * debStatusIndex::CreateListParser(FileFd &Pkg)
    if (newError)
    {
       delete Parser;
+      _error->ReturnError();
       return nullptr;
    }
    else
@@ -250,6 +252,7 @@ pkgCacheListParser * debDebPkgFileIndex::CreateListParser(FileFd &Pkg)
    if (newError)
    {
       delete Parser;
+      _error->ReturnError();
       return nullptr;
    }
    else

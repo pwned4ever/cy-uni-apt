@@ -76,7 +76,7 @@ string debListParser::Package() {
    std::transform(Result.begin(), Result.end(), Result.begin(), tolower_ascii);
 
    if(unlikely(Result.empty() == true))
-      _error->Error("Encountered a section with no Package: header");
+      _error->Warning("Encountered a section with no Package: header");
    return Result;
 }
 									/*}}}*/

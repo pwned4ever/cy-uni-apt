@@ -344,6 +344,7 @@ pkgCacheListParser * pkgDebianIndexFile::CreateListParser(FileFd &Pkg)
    if (newError)
    {
       delete Parser;
+      _error->ReturnError();
       return nullptr;
    }
    else
@@ -377,7 +378,7 @@ bool pkgDebianIndexFile::Merge(pkgCacheGenerator &Gen,OpProgress * const Prog)
    File->mtime = Pkg.ModificationTime();
 
    if (Gen.MergeList(*Parser) == false)
-      return _error->Warning("Problem with MergeList %s",PackageFile.c_str());
+      return _error->Error("Problem with MergeList %s",PackageFile.c_str());
    return true;
 }
 pkgCache::PkgFileIterator pkgDebianIndexFile::FindInCache(pkgCache &Cache) const
