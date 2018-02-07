@@ -533,7 +533,7 @@ bool DoSource(CommandLine &CmdL)
 	    strprintf(S, "%s %s %s",
 		  _config->Find("Dir::Bin::dpkg-source","dpkg-source").c_str(),
 		  sourceopts.c_str(), Dsc[I].Dsc.c_str());
-	    if (system(S.c_str()) != 0)
+	    if (RunCmd(S.c_str()) != 0)
 	    {
 	       fprintf(stderr, _("Unpack command '%s' failed.\n"), S.c_str());
 	       fprintf(stderr, _("Check if the 'dpkg-dev' package is installed.\n"));
@@ -562,7 +562,7 @@ bool DoSource(CommandLine &CmdL)
 		  _config->Find("Dir::Bin::dpkg-buildpackage","dpkg-buildpackage").c_str(),
 		  buildopts.c_str());
 
-	    if (system(S.c_str()) != 0)
+	    if (RunCmd(S.c_str()) != 0)
 	    {
 	       fprintf(stderr, _("Build command '%s' failed.\n"), S.c_str());
 	       _exit(1);
