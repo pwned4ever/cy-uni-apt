@@ -458,9 +458,6 @@ bool debReleaseIndex::Load(std::string const &Filename, std::string * const Erro
 
    if (CheckValidUntil == true)
    {
-      if (Date == 0)
-          _error->Warning( _("Invalid '%s' entry in Release file %s"), "Date", Filename.c_str());
-
       std::string const Label = Section.FindS("Label");
       std::string const StrValidUntil = Section.FindS("Valid-Until");
 
