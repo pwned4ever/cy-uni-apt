@@ -344,6 +344,7 @@ pkgCacheListParser * pkgDebianIndexFile::CreateListParser(FileFd &Pkg)
    if (newError)
    {
       delete Parser;
+      _error->ReturnError();
       return nullptr;
    }
    else

@@ -40,7 +40,6 @@
 MMap::MMap(FileFd &F,unsigned long Flags) : Flags(Flags), iSize(0),
                      Base(nullptr), SyncToFd(nullptr)
 {
-   if ((Flags & NoImmMap) != NoImmMap)
       Map(F);
 }
 									/*}}}*/
@@ -107,14 +106,14 @@ bool MMap::Map(FileFd &Fd)
 	    if (unlikely(Base == nullptr))
 	       return _error->Errno("MMap-malloc", _("Couldn't make mmap of %llu bytes"), iSize);
 	    SyncToFd = new FileFd();
-	    return Fd.Read(Base, iSize);
+	    return Fd.Seek(0L) && Fd.Read(Base, iSize);
 	 }
 	 // FIXME: Writing to compressed fd's ?
 	 int const dupped_fd = dup(Fd.Fd());
 	 if (dupped_fd == -1)
 	    return _error->Errno("mmap", _("Couldn't duplicate file descriptor %i"), Fd.Fd());
 
-	 Base = calloc(iSize, 1);
+	 Base = malloc(iSize);
 	 if (unlikely(Base == nullptr))
 	    return _error->Errno("MMap-calloc", _("Couldn't make mmap of %llu bytes"), iSize);
 	 SyncToFd = new FileFd (dupped_fd);
@@ -195,7 +194,7 @@ bool MMap::Sync(unsigned long Start,unsigned long Stop)
    {
       if (SyncToFd != 0)
       {
-	 if (!SyncToFd->Seek(0) ||
+	 if (!SyncToFd->Seek(Start) ||
 	     !SyncToFd->Write (((char *)Base)+Start, Stop-Start))
 	    return false;
       }
@@ -203,7 +202,8 @@ bool MMap::Sync(unsigned long Start,unsigned long Stop)
       {
 #ifdef _POSIX_SYNCHRONIZED_IO
 	 unsigned long long const PSize = sysconf(_SC_PAGESIZE);
-	 if (msync((char *)Base+(Start/PSize)*PSize, Stop - Start, MS_SYNC) < 0)
+         Start = (Start/PSize)*PSize;
+	 if (msync((char *)Base+Start, Stop - Start, MS_SYNC) < 0)
 	    return _error->Errno("msync", _("Unable to synchronize mmap"));
 #endif
       }
@@ -217,7 +217,7 @@ bool MMap::Sync(unsigned long Start,unsigned long Stop)
 /* */
 DynamicMMap::DynamicMMap(FileFd &F,unsigned long Flags,unsigned long const &Workspace,
 			 unsigned long const &Grow, unsigned long const &Limit) :
-		MMap(F,Flags | NoImmMap), Fd(&F), WorkSpace(Workspace),
+		MMap(Flags), Fd(&F), WorkSpace(Workspace),
 		GrowFactor(Grow), Limit(Limit)
 {
    // disable Moveable if we don't grow
@@ -251,7 +251,7 @@ DynamicMMap::DynamicMMap(FileFd &F,unsigned long Flags,unsigned long const &Work
    and could come in handy later than we are able to grow such an mmap */
 DynamicMMap::DynamicMMap(unsigned long Flags,unsigned long const &WorkSpace,
 			 unsigned long const &Grow, unsigned long const &Limit) :
-		MMap(Flags | NoImmMap | UnMapped), Fd(0), WorkSpace(WorkSpace),
+		MMap(Flags | UnMapped), Fd(0), WorkSpace(WorkSpace),
 		GrowFactor(Grow), Limit(Limit)
 {
 	// disable Moveable if we don't grow
@@ -307,10 +307,11 @@ DynamicMMap::~DynamicMMap()
       if (validData() == false)
 	 return;
 #ifdef _POSIX_MAPPED_FILES
-      munmap(Base, WorkSpace);
-#else
-      free(Base);
+      if ((Flags & Fallback) != Fallback) {
+         munmap(Base, WorkSpace);
+      } else
 #endif
+      free(Base);
       return;
    }
    
@@ -489,12 +490,14 @@ bool DynamicMMap::Grow() {
 		if ((Flags & Moveable) != Moveable)
 			return false;
 
-		Base = realloc(Base, newSize);
-		if (Base == NULL)
+		auto Temp = realloc(Base, newSize);
+		if (Temp == NULL)
 			return false;
-		else
+		else {
+			Base = Temp;
 			/* Set new memory to 0 */
 			memset((char*)Base + WorkSpace, 0, newSize - WorkSpace);
+		}
 	}
 
 	Pools =(Pool*) Base + poolOffset;

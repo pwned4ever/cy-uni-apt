@@ -266,7 +266,7 @@ static bool APT_NONNULL(3, 4, 5) AllowInsecureRepositories(InsecureType const ms
 
    if (TargetIsAllowedToBe(TransactionManager->Target, msg) == true)
    {
-      MessageInsecureRepository(false, msgstr, repo);
+      //MessageInsecureRepository(false, msgstr, repo);
       return true;
    }
 
@@ -1294,7 +1294,6 @@ bool pkgAcqMetaBase::CheckDownloadDone(pkgAcqTransactionItem * const I, const st
    {
       // for simplicity, the transaction manager is always InRelease
       // even if it doesn't exist.
-      TransactionManager->IMSHit = true;
       I->PartialFile = I->DestFile = I->GetFinalFilename();
    }
 
@@ -1412,7 +1411,7 @@ void pkgAcqMetaClearSig::QueueIndexes(bool const verify)			/*{{{*/
 	 if (TransactionManager->MetaIndexParser->Exists(Target.MetaKey) == false)
 	 {
 	    // optional targets that we do not have in the Release file are skipped
-	    if (hasHashes == true && Target.IsOptional)
+	    if (Target.IsOptional)
 	    {
 	       new CleanupItem(Owner, TransactionManager, Target);
 	       continue;
@@ -1536,6 +1535,13 @@ void pkgAcqMetaClearSig::QueueIndexes(bool const verify)			/*{{{*/
       }
       else
       {
+	 // if the source wanted these files they should have given us a release file :/
+	 if (Target.IsOptional)
+	 {
+	    new CleanupItem(Owner, TransactionManager, Target);
+	    continue;
+	 }
+
 	 // if we have no file to patch, no point in trying
 	 trypdiff &= (GetExistingFilename(GetFinalFileNameFromURI(Target.URI)).empty() == false);
       }
@@ -3070,6 +3076,8 @@ void pkgAcqIndex::StageDownloadDone(string const &Message)
    {
       // copy FinalFile into partial/ so that we check the hash again
       string const FinalFile = GetExistingFilename(GetFinalFileNameFromURI(Target.URI));
+      DestFile = GetKeepCompressedFileName(GetPartialFileNameFromURI(Target.URI), Target);
+      unlink(DestFile.c_str());
       if (symlink(FinalFile.c_str(), DestFile.c_str()) != 0)
 	 _error->WarningE("pkgAcqIndex::StageDownloadDone", "Symlinking final file %s back to %s failed", FinalFile.c_str(), DestFile.c_str());
       else
@@ -3078,7 +3086,10 @@ void pkgAcqIndex::StageDownloadDone(string const &Message)
 	 Filename = DestFile;
       }
       Stage = STAGE_DECOMPRESS_AND_VERIFY;
-      Desc.URI = "store:" + Filename;
+      if (Filename != DestFile && flExtension(Filename) == flExtension(DestFile))
+         Desc.URI = "copy:" + Filename;
+      else
+         Desc.URI = "store:" + Filename;
       QueueURI(Desc);
       SetActiveSubprocess(::URI(Desc.URI).Access);
       return;
@@ -3603,7 +3614,7 @@ std::string pkgAcqChangelog::URITemplate(pkgCache::RlsFileIterator const &Rls)
 	 should be so this could produce request order-dependent anomalies */
       if (OpenMaybeClearSignedFile(Rls.FileName(), rf) == true)
       {
-	 pkgTagFile TagFile(&rf, rf.Size());
+	 pkgTagFile TagFile(&rf);
 	 pkgTagSection Section;
 	 if (TagFile.Step(Section) == true)
 	    server = Section.FindS("Changelogs");

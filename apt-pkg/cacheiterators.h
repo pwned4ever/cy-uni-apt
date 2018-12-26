@@ -57,7 +57,7 @@ template<typename Str, typename Itr> class pkgCache::Iterator :
 	Str* OwnerPointer() const { return static_cast<Itr const*>(this)->OwnerPointer(); }
 
 	protected:
-	Str *S;
+	Str *volatile S;
 	pkgCache *Owner;
 
 	public:
@@ -214,6 +214,7 @@ class pkgCache::VerIterator : public Iterator<Version, VerIterator> {
 	// Accessors
 	inline const char *VerStr() const {return S->VerStr == 0?0:Owner->StrP + S->VerStr;}
 	inline const char *Section() const {return S->Section == 0?0:Owner->StrP + S->Section;}
+	inline const char *Display() const {return S->Display == 0?0:Owner->StrP + S->Display;}
 	/** \brief source package name this version comes from
 	   Always contains the name, even if it is the same as the binary name */
 	inline const char *SourcePkgName() const {return Owner->StrP + S->SourcePkgName;}
@@ -231,6 +232,7 @@ class pkgCache::VerIterator : public Iterator<Version, VerIterator> {
 	DescIterator TranslatedDescription() const;
 	inline DepIterator DependsList() const;
 	inline PrvIterator ProvidesList() const;
+	inline TagIterator TagList() const;
 	inline VerFileIterator FileList() const;
 	bool Downloadable() const;
 	inline const char *PriorityType() const {return Owner->Priority(S->Priority);}
@@ -245,6 +247,33 @@ class pkgCache::VerIterator : public Iterator<Version, VerIterator> {
 			S = OwnerPointer();
 	}
 	inline VerIterator() : Iterator<Version, VerIterator>() {}
+};
+									/*}}}*/
+// Tag Iterator								/*{{{*/
+class pkgCache::TagIterator : public Iterator<Tag, TagIterator> {
+	public:
+	inline Tag* OwnerPointer() const {
+		return (Owner != 0) ? Owner->TagP : 0;
+	}
+
+   // Iteration
+   void operator ++(int) {if (S != Owner->TagP) S = Owner->TagP + S->NextTag;};
+   inline void operator ++() {operator ++(0);};
+
+   // Comparison
+   inline bool operator ==(const TagIterator &B) const {return S == B.S;};
+   inline bool operator !=(const TagIterator &B) const {return S != B.S;};
+   int CompareTag(const TagIterator &B) const;
+
+   // Accessors
+   inline const char *Name() const {return Owner->StrP + S->Name;};
+   inline unsigned long Index() const {return S - Owner->TagP;};
+
+	inline TagIterator(pkgCache &Owner,Tag *Trg = 0) : Iterator<Tag, TagIterator>(Owner, Trg) {
+		if (S == 0)
+			S = OwnerPointer();
+	}
+	inline TagIterator() : Iterator<Tag, TagIterator>() {}
 };
 									/*}}}*/
 // Description Iterator							/*{{{*/
@@ -515,6 +544,8 @@ inline pkgCache::DescIterator pkgCache::VerIterator::DescriptionList() const
        {return DescIterator(*Owner,Owner->DescP + S->DescriptionList);}
 inline pkgCache::PrvIterator pkgCache::VerIterator::ProvidesList() const
        {return PrvIterator(*Owner,Owner->ProvideP + S->ProvidesList,S);}
+inline pkgCache::TagIterator pkgCache::VerIterator::TagList() const
+       {return TagIterator(*Owner,Owner->TagP + S->TagList);};
 inline pkgCache::DepIterator pkgCache::VerIterator::DependsList() const
        {return DepIterator(*Owner,Owner->DepP + S->DependsList,S);}
 inline pkgCache::VerFileIterator pkgCache::VerIterator::FileList() const

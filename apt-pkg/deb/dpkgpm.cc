@@ -1386,7 +1386,9 @@ static void cleanUpTmpDir(char * const tmpdir)				/*{{{*/
 	 if (unlikely(Ent->d_type != DT_LNK && Ent->d_type != DT_UNKNOWN))
 	    continue;
 #endif
-	 if (unlikely(unlinkat(dfd, Ent->d_name, 0) != 0))
+	 char path[strlen(tmpdir) + 1 + strlen(Ent->d_name) + 1];
+	 sprintf(path, "%s/%s", tmpdir, Ent->d_name);
+	 if (unlikely(unlink(path) != 0))
 	    break;
       }
       closedir(D);
@@ -1697,7 +1699,7 @@ bool pkgDPkgPM::Go(APT::Progress::PackageManager *progress)
    bool dpkgMultiArch = debSystem::SupportsMultiArch();
 
    // start pty magic before the loop
-   StartPtyMagic();
+   //StartPtyMagic(); or not...
 
    // Tell the progress that its starting and fork dpkg
    d->progress->Start(d->master);
@@ -1758,6 +1760,7 @@ bool pkgDPkgPM::Go(APT::Progress::PackageManager *progress)
 	 case Item::Remove:
 	 case Item::Purge:
 	 ADDARGC("--force-depends");
+	 ADDARGC("--force-remove-reinstreq");
 	 if (std::any_of(I, J, ItemIsEssential))
 	    ADDARGC("--force-remove-essential");
 	 ADDARGC("--remove");
@@ -2096,7 +2099,7 @@ bool pkgDPkgPM::Go(APT::Progress::PackageManager *progress)
       }
    }
    // dpkg is done at this point
-   StopPtyMagic();
+   //StopPtyMagic();
    CloseLog();
 
    if (d->dpkg_error.empty() == false)

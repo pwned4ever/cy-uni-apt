@@ -320,7 +320,7 @@ bool ReadPinDir(pkgPolicy &Plcy,string Dir)
    bool const PendingErrors = _error->PendingError();
    _error->MergeWithStack();
    if (PendingErrors)
-      return false;
+      return _error->ReturnError();
 
    // Read the files
    for (vector<string>::const_iterator I = List.begin(); I != List.end(); ++I)
@@ -391,6 +391,7 @@ bool ReadPinFile(pkgPolicy &Plcy,string File)
       if (priority < std::numeric_limits<short>::min() ||
           priority > std::numeric_limits<short>::max() ||
 	  newError) {
+	 _error->ReturnError();
 	 return _error->Error(_("%s: Value %s is outside the range of valid pin priorities (%d to %d)"),
 			      File.c_str(), Tags.FindS("Pin-Priority").c_str(),
 			      std::numeric_limits<short>::min(),

@@ -70,7 +70,7 @@ bool pkgCacheGenerator::Start()
       bool const newError = _error->PendingError();
       _error->MergeWithStack();
       if (newError)
-	 return false;
+	 return _error->ReturnError();
       if (Map.Size() <= 0)
 	 return false;
 
@@ -134,7 +134,7 @@ bool pkgCacheGenerator::Start()
    advoid a problem during a crash */
 pkgCacheGenerator::~pkgCacheGenerator()
 {
-   if (_error->PendingError() == true || Map.validData() == false)
+   if (Map.validData() == false)
       return;
    if (Map.Sync() == false)
       return;
@@ -173,6 +173,10 @@ void pkgCacheGenerator::ReMap(void const * const oldMap, void const * const newM
 	 (*i)->ReMap(oldMap, newMap);
    for (std::vector<pkgCache::VerIterator*>::const_iterator i = Dynamic<pkgCache::VerIterator>::toReMap.begin();
 	i != Dynamic<pkgCache::VerIterator>::toReMap.end(); ++i)
+      if (std::get<1>(seen.insert(*i)) == true)
+	 (*i)->ReMap(oldMap, newMap);
+   for (std::vector<pkgCache::TagIterator*>::const_iterator i = Dynamic<pkgCache::TagIterator>::toReMap.begin();
+	i != Dynamic<pkgCache::TagIterator>::toReMap.end(); ++i)
       if (std::get<1>(seen.insert(*i)) == true)
 	 (*i)->ReMap(oldMap, newMap);
    for (std::vector<pkgCache::DepIterator*>::const_iterator i = Dynamic<pkgCache::DepIterator>::toReMap.begin();
@@ -250,7 +254,7 @@ bool pkgCacheGenerator::MergeList(ListParser &List,
    {
       string const PackageName = List.Package();
       if (PackageName.empty() == true)
-	 return false;
+          continue;
 
       Counter++;
       if (Counter % 100 == 0 && Progress != 0)
@@ -264,24 +268,26 @@ bool pkgCacheGenerator::MergeList(ListParser &List,
       {
 	 // package descriptions
 	 if (MergeListGroup(List, PackageName) == false)
-	    return false;
+	    continue;
 	 continue;
       }
 
       // Get a pointer to the package structure
       pkgCache::PkgIterator Pkg;
       Dynamic<pkgCache::PkgIterator> DynPkg(Pkg);
-      if (NewPackage(Pkg, PackageName, Arch) == false)
+      if (NewPackage(Pkg, PackageName, Arch) == false) {
 	 // TRANSLATOR: The first placeholder is a package name,
 	 // the other two should be copied verbatim as they include debug info
-	 return _error->Error(_("Error occurred while processing %s (%s%d)"),
+	 _error->Error(_("Error occurred while processing %s (%s%d)"),
 			      PackageName.c_str(), "NewPackage", 1);
+         continue;
+      }
 
 
       if (Version.empty() == true)
       {
 	 if (MergeListPackage(List, Pkg) == false)
-	    return false;
+	    continue;
       }
       else
       {
@@ -1274,6 +1280,38 @@ bool pkgCacheGenerator::SelectReleaseFile(const string &File,const string &Site,
    return true;
 }
 									/*}}}*/
+// ListParser::NewTag - Create a Tag element				/*{{{*/
+// ---------------------------------------------------------------------
+/* */
+bool pkgCacheListParser::NewTag(pkgCache::VerIterator &Ver,
+					   const char *NameStart,
+					   unsigned int NameSize)
+{
+   return Owner->NewTag(Ver, NameStart, NameSize);
+}
+bool pkgCacheGenerator::NewTag(pkgCache::VerIterator &Ver,
+					   const char *NameStart,
+					   unsigned int NameSize)
+{
+   // Get a structure
+   map_pointer_t const idxTag = AllocateInMap(sizeof(pkgCache::Tag));
+   if (unlikely(idxTag == 0))
+      return false;
+   
+   // Fill it in
+   pkgCache::TagIterator Tg(Cache,Cache.TagP + idxTag);
+   map_pointer_t const idxName = StoreString(TAG,NameStart,NameSize);
+   if (idxName == 0)
+      return false;
+   Tg->Name = idxName;
+
+   Tg->NextTag = Ver->TagList;
+   Ver->TagList = Tg.Index();
+   Cache.HeaderP->TagCount++;
+   
+   return true;
+}
+									/*}}}*/
 // CacheGenerator::SelectFile - Select the current file being parsed	/*{{{*/
 // ---------------------------------------------------------------------
 /* This is used to select which file is to be associated with all newly
@@ -1341,6 +1379,7 @@ map_stringitem_t pkgCacheGenerator::StoreString(enum StringType const type, cons
       case PKGNAME: strings = &strPkgNames; break;
       case VERSIONNUMBER: strings = &strVersions; break;
       case SECTION: strings = &strSections; break;
+      case TAG: strings = &strTags; break;
       default: _error->Fatal("Unknown enum type used for string storage of '%.*s'", Size, S); return 0;
    }
 
@@ -1480,7 +1519,7 @@ static bool CheckValidity(FileFd &CacheFile, std::string const &CacheFileName,
 	 std::clog << "Validity failed because of pending errors:" << std::endl;
 	 _error->DumpErrors(std::clog, GlobalError::DEBUG, false);
       }
-      return false;
+      return _error->ReturnError();
    }
 
    if (OutMap != 0)
@@ -1518,16 +1557,14 @@ static map_filesize_t ComputeSize(pkgSourceList const * const List, FileIterator
 }
 									/*}}}*/
 // BuildCache - Merge the list of index files into the cache		/*{{{*/
-static bool BuildCache(pkgCacheGenerator &Gen,
+static void BuildCache(pkgCacheGenerator &Gen,
 		       OpProgress * const Progress,
 		       map_filesize_t &CurrentSize,map_filesize_t TotalSize,
 		       pkgSourceList const * const List,
 		       FileIterator const Start, FileIterator const End)
 {
-   bool mergeFailure = false;
-
    auto const indexFileMerge = [&](pkgIndexFile * const I) {
-      if (I->HasPackages() == false || mergeFailure)
+      if (I->HasPackages() == false)
 	 return;
 
       if (I->Exists() == false)
@@ -1545,8 +1582,10 @@ static bool BuildCache(pkgCacheGenerator &Gen,
 	 Progress->OverallProgress(CurrentSize, TotalSize, Size, _("Reading package lists"));
       CurrentSize += Size;
 
-      if (I->Merge(Gen,Progress) == false)
-	 mergeFailure = true;
+      if (I->Merge(Gen,Progress) == false) {
+	 _error->ReturnError();
+	 return;
+      }
    };
 
    if (List !=  NULL)
@@ -1560,14 +1599,14 @@ static bool BuildCache(pkgCacheGenerator &Gen,
 	    continue;
 	 }
 
-	 if ((*i)->Merge(Gen, Progress) == false)
-	    return false;
+	 if ((*i)->Merge(Gen, Progress) == false) {
+	    _error->ReturnError();
+	    continue;
+	 }
 
 	 std::vector <pkgIndexFile *> *Indexes = (*i)->GetIndexFiles();
 	 if (Indexes != NULL)
 	    std::for_each(Indexes->begin(), Indexes->end(), indexFileMerge);
-	 if (mergeFailure)
-	    return false;
       }
    }
 
@@ -1575,10 +1614,7 @@ static bool BuildCache(pkgCacheGenerator &Gen,
    {
       Gen.SelectReleaseFile("", "");
       std::for_each(Start, End, indexFileMerge);
-      if (mergeFailure)
-	 return false;
    }
-   return true;
 }
 									/*}}}*/
 // CacheGenerator::MakeStatusCache - Construct the status cache		/*{{{*/
@@ -1637,7 +1673,7 @@ static bool loadBackMMapFromFile(std::unique_ptr<pkgCacheGenerator> &Gen,
    bool const newError = _error->PendingError();
    _error->MergeWithStack();
    if (alloc == 0 && newError)
-      return false;
+      return _error->ReturnError();
    if (CacheF.Read((unsigned char *)Map->Data() + alloc, CacheF.Size()) == false)
       return false;
    Gen.reset(new pkgCacheGenerator(Map.get(),Progress));
@@ -1753,9 +1789,8 @@ bool pkgCacheGenerator::MakeStatusCache(pkgSourceList &List,OpProgress *Progress
 	 return false;
 
       TotalSize += ComputeSize(&List, Files.begin(),Files.end());
-      if (BuildCache(*Gen, Progress, CurrentSize, TotalSize, &List,
-	       Files.end(),Files.end()) == false)
-	 return false;
+      BuildCache(*Gen, Progress, CurrentSize, TotalSize, &List,
+	       Files.end(),Files.end());
 
       if (Writeable == true && SrcCacheFileName.empty() == false)
 	 if (writeBackMMapToFile(Gen.get(), Map.get(), SrcCacheFileName) == false)
@@ -1766,9 +1801,8 @@ bool pkgCacheGenerator::MakeStatusCache(pkgSourceList &List,OpProgress *Progress
    {
       if (Debug == true)
 	 std::clog << "Building status cache in pkgcache.bin now" << std::endl;
-      if (BuildCache(*Gen, Progress, CurrentSize, TotalSize, NULL,
-	       Files.begin(), Files.end()) == false)
-	 return false;
+      BuildCache(*Gen, Progress, CurrentSize, TotalSize, NULL,
+	       Files.begin(), Files.end());
 
       if (Writeable == true && CacheFileName.empty() == false)
 	 if (writeBackMMapToFile(Gen.get(), Map.get(), CacheFileName) == false)
@@ -1789,9 +1823,8 @@ bool pkgCacheGenerator::MakeStatusCache(pkgSourceList &List,OpProgress *Progress
       }
 
       Files = List.GetVolatileFiles();
-      if (BuildCache(*Gen, Progress, CurrentSize, TotalSize, NULL,
-	       Files.begin(), Files.end()) == false)
-	 return false;
+      BuildCache(*Gen, Progress, CurrentSize, TotalSize, NULL,
+	       Files.begin(), Files.end());
    }
 
    if (OutMap != nullptr)
@@ -1828,14 +1861,15 @@ bool pkgCacheGenerator::MakeOnlyStatusCache(OpProgress *Progress,DynamicMMap **O
    if (Progress != NULL)
       Progress->OverallProgress(0,1,1,_("Reading package lists"));
    pkgCacheGenerator Gen(Map.get(),Progress);
-   if (Gen.Start() == false || _error->PendingError() == true)
+   if (Gen.Start() == false)
       return false;
-   if (BuildCache(Gen,Progress,CurrentSize,TotalSize, NULL,
-		  Files.begin(), Files.end()) == false)
-      return false;
-
    if (_error->PendingError() == true)
-      return false;
+      return _error->ReturnError();
+   BuildCache(Gen,Progress,CurrentSize,TotalSize, NULL,
+		  Files.begin(), Files.end());
+   // We've passed the point of no return
+   _error->ReturnError();
+
    *OutMap = Map.release();
    
    return true;

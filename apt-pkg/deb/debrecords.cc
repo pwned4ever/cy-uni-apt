@@ -35,7 +35,7 @@ using std::string;
 // RecordParser::debRecordParser - Constructor				/*{{{*/
 debRecordParser::debRecordParser(string FileName,pkgCache &Cache) :
    debRecordParserBase(), d(NULL), File(FileName, FileFd::ReadOnly, FileFd::Extension),
-   Tags(&File, std::max(Cache.Head().MaxVerFileSize, Cache.Head().MaxDescFileSize) + 200)
+   Tags(&File)
 {
 }
 									/*}}}*/
@@ -72,6 +72,15 @@ string debRecordParserBase::Name()
    std::transform(Result.begin(), Result.end(), Result.begin(), tolower_ascii);
 
    return Result;
+}
+									/*}}}*/
+// RecordParserBase::Display - Return the package homepage		/*{{{*/
+string debRecordParserBase::Display()
+{
+   string display(Section.FindS("Name"));
+   if (display.empty())
+      display = Section.FindS("Maemo-Display-Name");
+   return display;
 }
 									/*}}}*/
 // RecordParserBase::Homepage - Return the package homepage		/*{{{*/
@@ -153,7 +162,7 @@ string debRecordParserBase::LongDesc(std::string const &lang)
    }
 
    char const * const codeset = nl_langinfo(CODESET);
-   if (strcmp(codeset,"UTF-8") != 0) {
+   if (strcmp(codeset,"US-ASCII") != 0 && strcmp(codeset,"UTF-8") != 0) {
       string dest;
       UTF8ToCodeset(codeset, orig, &dest);
       return dest;
@@ -201,6 +210,12 @@ void debRecordParserBase::GetRec(const char *&Start,const char *&Stop)
    Section.GetSection(Start,Stop);
 }
 									/*}}}*/
+// RecordParserBase::Find - Locate a tag			/*{{{*/
+bool debRecordParserBase::Find(const char *Tag,const char *&Start, const char *&End)
+{
+   return Section.Find(Tag,Start,End);
+}
+									/*}}}*/
 debRecordParserBase::~debRecordParserBase() {}
 
 bool debDebFileRecordParser::LoadContent()
@@ -217,7 +232,7 @@ bool debDebFileRecordParser::LoadContent()
    content << "\n\n";
 
    controlContent = content.str();
-   if (Section.Scan(controlContent.c_str(), controlContent.length()) == false)
+   if (Section.Scan(controlContent.c_str(), controlContent.length(), false) == false)
       return _error->Error(_("Unable to parse package file %s (%d)"), debFileName.c_str(), 3);
    return true;
 }

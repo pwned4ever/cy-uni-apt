@@ -63,6 +63,7 @@ debListParser::debListParser(FileFd *File) :
    else
       forceEssential.emplace_back("apt");
    forceImportant = _config->FindVector("pkgCacheGen::ForceImportant");
+   Arch = _config->Find("APT::architecture");
 }
 									/*}}}*/
 // ListParser::Package - Return the package name			/*{{{*/
@@ -87,7 +88,7 @@ string debListParser::Package() {
    }
 
    if(unlikely(Result.empty() == true))
-      _error->Error("Encountered a section with no Package: header");
+      _error->Warning("Encountered a section with no Package: header");
    return Result;
 }
 									/*}}}*/
@@ -158,6 +159,15 @@ bool debListParser::NewVersion(pkgCache::VerIterator &Ver)
 {
    const char *Start;
    const char *Stop;
+
+   if (Section.Find("Name",Start,Stop) == true)
+   {
+      Ver->Display = WriteString(Start, Stop - Start);
+   }
+   else if (Section.Find("Maemo-Display-Name",Start,Stop) == true)
+   {
+      Ver->Display = WriteString(Start, Stop - Start);
+   }
 
    // Parse the section
    if (Section.Find(pkgTagSection::Key::Section,Start,Stop) == true)
@@ -254,6 +264,8 @@ bool debListParser::NewVersion(pkgCache::VerIterator &Ver)
       return false;
    
    if (ParseProvides(Ver) == false)
+      return false;
+   if (ParseTag(Ver) == false)
       return false;
    
    return true;
@@ -847,7 +859,7 @@ bool debListParser::ParseDepends(pkgCache::VerIterator &Ver,
 
       Start = ParseDepends(Start, Stop, Package, Version, Op, false, false, false);
       if (Start == 0)
-	 return _error->Error("Problem parsing dependency %zu",static_cast<size_t>(Key)); // TODO
+	 return _error->Warning("Problem parsing dependency %zu",static_cast<size_t>(Key)); // TODO
       size_t const found = Package.rfind(':');
 
       if (found == string::npos)
@@ -915,7 +927,7 @@ bool debListParser::ParseProvides(pkgCache::VerIterator &Ver)
 	 Start = ParseDepends(Start,Stop,Package,Version,Op, false, false, false);
 	 const size_t archfound = Package.rfind(':');
 	 if (Start == 0)
-	    return _error->Error("Problem parsing Provides line");
+	    return _error->Warning("Problem parsing Provides line");
 	 if (unlikely(Op != pkgCache::Dep::NoOp && Op != pkgCache::Dep::Equals)) {
 	    _error->Warning("Ignoring Provides line with non-equal DepCompareOp for package %s", Package.to_string().c_str());
 	 } else if (archfound != string::npos) {
@@ -983,6 +995,46 @@ bool debListParser::ParseProvides(pkgCache::VerIterator &Ver)
 	    return false;
       }
    }
+   return true;
+}
+									/*}}}*/
+// ListParser::ParseTag - Parse the tag list				/*{{{*/
+// ---------------------------------------------------------------------
+/* */
+bool debListParser::ParseTag(pkgCache::VerIterator &Ver)
+{
+   const char *Start;
+   const char *Stop;
+   if (Section.Find("Tag",Start,Stop) == false)
+      return true;
+
+   while (1) {
+      while (1) {
+         if (Start == Stop)
+            return true;
+         if (Stop[-1] != ' ' && Stop[-1] != '\t')
+            break;
+         --Stop;
+      }
+
+      const char *Begin = Stop - 1;
+      while (Begin != Start && Begin[-1] != ' ' && Begin[-1] != ',')
+         --Begin;
+
+      if (NewTag(Ver, Begin, Stop - Begin) == false)
+         return false;
+
+      while (1) {
+         if (Begin == Start)
+            return true;
+         if (Begin[-1] == ',')
+            break;
+         --Begin;
+      }
+
+      Stop = Begin - 1;
+   }
+
    return true;
 }
 									/*}}}*/

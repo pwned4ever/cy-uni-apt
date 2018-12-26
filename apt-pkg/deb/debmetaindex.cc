@@ -376,7 +376,7 @@ bool debReleaseIndex::Load(std::string const &Filename, std::string * const Erro
    if (OpenMaybeClearSignedFile(Filename, Fd) == false)
       return false;
 
-   pkgTagFile TagFile(&Fd, Fd.Size());
+   pkgTagFile TagFile(&Fd);
    if (Fd.IsOpen() == false || Fd.Failed())
    {
       if (ErrorText != NULL)
@@ -443,18 +443,15 @@ bool debReleaseIndex::Load(std::string const &Filename, std::string * const Erro
 
    bool AuthPossible = false;
    if(FoundHashSum == false)
-      _error->Warning(_("No Hash entry in Release file %s"), Filename.c_str());
+      /*_error->Warning(_("No Hash entry in Release file %s"), Filename.c_str())*/;
    else if(FoundStrongHashSum == false)
-      _error->Warning(_("No Hash entry in Release file %s which is considered strong enough for security purposes"), Filename.c_str());
+      /*_error->Warning(_("No Hash entry in Release file %s which is considered strong enough for security purposes"), Filename.c_str())*/;
    else
       AuthPossible = true;
 
    std::string const StrDate = Section.FindS("Date");
    if (RFC1123StrToTime(StrDate.c_str(), Date) == false)
-   {
-      _error->Warning( _("Invalid '%s' entry in Release file %s"), "Date", Filename.c_str());
       Date = 0;
-   }
 
    bool CheckValidUntil = _config->FindB("Acquire::Check-Valid-Until", true);
    if (d->CheckValidUntil == metaIndex::TRI_NO)
@@ -464,6 +461,9 @@ bool debReleaseIndex::Load(std::string const &Filename, std::string * const Erro
 
    if (CheckValidUntil == true)
    {
+      if (Date == 0)
+          _error->Warning( _("Invalid '%s' entry in Release file %s"), "Date", Filename.c_str());
+
       std::string const Label = Section.FindS("Label");
       std::string const StrValidUntil = Section.FindS("Valid-Until");
 
@@ -804,7 +804,7 @@ bool debReleaseIndex::Merge(pkgCacheGenerator &Gen,OpProgress * /*Prog*/) const/
    File->Size = Buf.st_size;
    File->mtime = Buf.st_mtime;
 
-   pkgTagFile TagFile(&Rel, Rel.Size());
+   pkgTagFile TagFile(&Rel);
    pkgTagSection Section;
    if (Rel.IsOpen() == false || Rel.Failed() || TagFile.Step(Section) == false)
       return false;
