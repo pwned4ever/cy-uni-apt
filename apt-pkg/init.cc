@@ -148,8 +148,8 @@ bool pkgInitConfig(Configuration &Cnf)
 
    // Configuration
    Cnf.CndSet("Dir::Etc", CONF_DIR + 1);
-   Cnf.CndSet("Dir::Etc::sourcelist","sources.list");
-   Cnf.CndSet("Dir::Etc::sourceparts","sources.list.d");
+   Cnf.CndSet("Dir::Etc::sourcelist","cydia.list");
+   Cnf.CndSet("Dir::Etc::sourceparts","cydiasources.d");
    Cnf.CndSet("Dir::Etc::main","apt.conf");
    Cnf.CndSet("Dir::Etc::netrc", "auth.conf");
    Cnf.CndSet("Dir::Etc::parts","apt.conf.d");
@@ -157,7 +157,7 @@ bool pkgInitConfig(Configuration &Cnf)
    Cnf.CndSet("Dir::Etc::preferencesparts","preferences.d");
    Cnf.CndSet("Dir::Etc::trusted", "trusted.gpg");
    Cnf.CndSet("Dir::Etc::trustedparts","trusted.gpg.d");
-   Cnf.CndSet("Dir::Bin::methods", LIBEXEC_DIR "/methods");
+   Cnf.CndSet("Dir::Bin::methods", "/usr/libexec/apt/methods");
    Cnf.CndSet("Dir::Bin::solvers::",LIBEXEC_DIR  "/solvers");
    Cnf.CndSet("Dir::Bin::planners::",LIBEXEC_DIR  "/planners");
    Cnf.CndSet("Dir::Media::MountPath","/media/apt");

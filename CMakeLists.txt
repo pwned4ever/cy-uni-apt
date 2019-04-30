@@ -233,7 +233,7 @@ endif()
 install_empty_directories(
   ${CONF_DIR}/apt.conf.d
   ${CONF_DIR}/preferences.d
-  ${CONF_DIR}/sources.list.d
+  ${CONF_DIR}/cydiasources.d
   ${CONF_DIR}/trusted.gpg.d
   ${CACHE_DIR}/archives/partial
   ${STATE_DIR}/lists/partial
